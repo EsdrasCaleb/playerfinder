@@ -1,0 +1,98 @@
+
+# Docker-Compose configuration file.
+
+# v3 syntax
+version: '3.7'
+
+# Volumes (for persist data when container restart)
+volumes:
+  # Postgres Data
+  produtiivows-postgres-data:
+    driver: local
+
+  # Redis Data
+  produtiivows-redis-data:
+    driver: local
+
+# Networks
+networks:
+  produtiivo:
+    name: playerhunter
+    driver: bridge
+
+# Services
+services:
+
+  # Postgres
+  database:
+    image: postgres:9.6
+    container_name: playerhunter-postgres
+    volumes:
+      - produtiivows-postgres-data:/var/lib/pgsql
+    networks:
+      - produtiivo
+    environment:
+      - "POSTGRES_DB=produtiivo"
+      - "POSTGRES_USER=produtiivo"
+      - "POSTGRES_PASSWORD="
+    ports:
+      - "5433:5432"
+    logging:
+      driver: none
+
+  # Database for run tests
+  database_for_tests:
+    image: postgres:9.6
+    container_name: produtiivo-ws-database-for-tests
+    networks:
+      - produtiivo
+    environment:
+      - "POSTGRES_DB=testing"
+      - "POSTGRES_USER=testing"
+      - "POSTGRES_PASSWORD="
+    ports:
+      - "5434:5432"
+    logging:
+      driver: none
+
+
+  # Redis
+  cache:
+    image: redis:3.2
+    container_name: produtiivo-ws-redis
+    command: --appendonly yes
+    volumes:
+      - produtiivows-redis-data:/data
+    networks:
+      - produtiivo
+    ports:
+      - "6379:6379"
+    logging:
+      driver: none
+
+  # The Application
+  app:
+    image: ambientum/php:7.2-nginx
+    container_name: produtiivo-ws
+    volumes:
+      - .:/var/www/app
+    networks:
+      - produtiivo
+    ports:
+      - "8000:8080"
+    depends_on:
+      - database
+      - cache
+
+  # Queues
+  queue:
+    image: ambientum/php:7.2
+    container_name: produtiivo-ws-queue
+    command: php artisan queue:listen
+    volumes:
+      - .:/var/www/app
+    networks:
+      - produtiivo
+    depends_on:
+      - database
+      - cache
